@@ -6,12 +6,14 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
-from auth import router as auth_router
-from dashboard import router as dashboard_router
-from product import router as product_router
-from superadmin import router as superadmin_router
+from config import supabase_client
+from datetime import datetime
+# from auth import router as auth_router
+# from dashboard import router as dashboard_router
+# from product import router as product_router
+# from superadmin import router as superadmin_router
 
-app = FastAPI()
+app = FastAPI(title="Bi-Friends API")
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -40,3 +42,28 @@ async def root(request: Request):
 
 
 
+@app.get("/test-connection")
+@limiter.limit("50/minute")
+async def test_supabase_connection(request: Request):
+    try:
+        # Test Supabase connection with a simple query
+        response = supabase_client.table('ms_user').select("*").limit(1).execute()
+        
+        return {
+            "status": "success",
+            "message": "Connected to Supabase",
+            "timestamp": datetime.now().isoformat(),
+            "supabase_url": supabase_client.supabase_url,
+            "is_connected": True,
+            "response": response
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "status": "error",
+                "message": str(e),
+                "timestamp": datetime.now().isoformat(),
+                "is_connected": False
+            }
+        )
