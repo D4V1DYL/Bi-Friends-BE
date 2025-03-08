@@ -160,3 +160,5 @@ def check_token_validity(token: str = Depends(oauth2_scheme)):
         return {"message": "Token is valid"}
     except jwt.PyJWTError:
         raise credentials_exception
+
+# Tes
