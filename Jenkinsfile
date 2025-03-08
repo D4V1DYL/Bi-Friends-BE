@@ -7,7 +7,22 @@ pipeline {
         ENV_FILE = "/var/lib/jenkins/.env"
     }
 
+    triggers {
+        githubPush()
+    }
+
     stages {
+        stage('Check Branch') {
+            steps {
+                script {
+                    def branchName = sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
+                    if (branchName != 'main') {
+                        error "Skipping deployment: Changes were pushed to '${branchName}', not 'main'."
+                    }
+                }
+            }
+        }
+
         stage('Clone Repository') {
             steps {
                 git branch: 'main', 
@@ -25,10 +40,9 @@ pipeline {
         stage('Stop Old Container') {
             steps {
                 script {
-                    def running = sh(script: "docker ps -aq -f name=$CONTAINER_NAME", returnStdout: true).trim()
+                    def running = sh(script: "docker ps -q -f name=$CONTAINER_NAME", returnStdout: true).trim()
                     if (running) {
-                        sh "docker stop $CONTAINER_NAME || true"
-                        sh "docker rm -f $CONTAINER_NAME || true"
+                        sh "docker stop $CONTAINER_NAME && docker rm $CONTAINER_NAME"
                     }
                 }
             }
