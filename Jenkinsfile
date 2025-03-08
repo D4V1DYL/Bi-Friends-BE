@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "bi-friends-app"
+        IMAGE_NAME = "bi-friends-be"
         CONTAINER_NAME = "fastapi-container"
     }
 
