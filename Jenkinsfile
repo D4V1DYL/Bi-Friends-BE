@@ -25,9 +25,10 @@ pipeline {
         stage('Stop Old Container') {
             steps {
                 script {
-                    def running = sh(script: "docker ps -q -f name=$CONTAINER_NAME", returnStdout: true).trim()
+                    def running = sh(script: "docker ps -aq -f name=$CONTAINER_NAME", returnStdout: true).trim()
                     if (running) {
-                        sh "docker stop $CONTAINER_NAME && docker rm $CONTAINER_NAME"
+                        sh "docker stop $CONTAINER_NAME || true"
+                        sh "docker rm -f $CONTAINER_NAME || true"
                     }
                 }
             }
