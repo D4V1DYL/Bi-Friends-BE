@@ -4,6 +4,7 @@ pipeline {
     environment {
         IMAGE_NAME = "bi-friends-be"
         CONTAINER_NAME = "fastapi-container"
+        ENV_FILE = "/root/.env"
     }
 
     stages {
@@ -32,9 +33,20 @@ pipeline {
             }
         }
 
+        stage('Check .env File') {
+            steps {
+                script {
+                    def envExists = sh(script: "[ -f $ENV_FILE ] && echo 'exists' || echo 'missing'", returnStdout: true).trim()
+                    if (envExists != 'exists') {
+                        error "ERROR: .env file is missing at $ENV_FILE!"
+                    }
+                }
+            }
+        }
+
         stage('Run New Container') {
             steps {
-                sh 'docker run -d --name $CONTAINER_NAME -p 8000:8000 $IMAGE_NAME'
+                sh 'docker run -d --name $CONTAINER_NAME --env-file $ENV_FILE -p 8000:8000 $IMAGE_NAME'
             }
         }
     }
