@@ -8,7 +8,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
 from config import supabase_client
 from datetime import datetime
-# from auth import router as auth_router
+from auth import router as auth_router
 # from dashboard import router as dashboard_router
 # from product import router as product_router
 # from superadmin import router as superadmin_router
@@ -22,7 +22,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
 
-# app.include_router(auth_router, prefix="/auth")
+app.include_router(auth_router, prefix="/auth")
 # app.include_router(dashboard_router, prefix="/dashboard")
 
 
@@ -47,7 +47,7 @@ async def root(request: Request):
 async def test_supabase_connection(request: Request):
     try:
         # Test Supabase connection with a simple query
-        response = supabase_client.table('ms_user').select("*").limit(1).execute()
+        response = supabase_client.table('msuser').select("*").limit(1).execute()
         
         return {
             "status": "success",
