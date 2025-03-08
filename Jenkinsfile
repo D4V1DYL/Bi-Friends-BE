@@ -4,7 +4,7 @@ pipeline {
     environment {
         IMAGE_NAME = "bi-friends-be"
         CONTAINER_NAME = "fastapi-container"
-        ENV_FILE = "/root/.env"
+        ENV_FILE = "/var/lib/jenkins/.env"
     }
 
     stages {
