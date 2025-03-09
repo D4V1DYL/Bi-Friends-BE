@@ -5,7 +5,9 @@ pipeline {
         IMAGE_NAME = "bi-friends-be"
         CONTAINER_NAME = "fastapi-container"
         ENV_FILE = "/var/lib/jenkins/.env"
+        PORT = "8000"
         DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1348391496319111241/Q2-Y2zNTe3MC-PlAsziHoKhD6pWdWb6ZPcLoLqtkUq4f5J5CmmYqcR0uIGddt7ajGVux"
+        JENKINS_URL = "https://jenkins.bifriends.my.id/"
     }
 
     triggers {
@@ -20,7 +22,7 @@ pipeline {
                         script: 'git name-rev --name-only HEAD || git rev-parse --abbrev-ref HEAD',
                         returnStdout: true
                     ).trim()
-                    
+
                     // Remove 'origin/' prefix and '^0' suffix if present
                     branchName = branchName.replaceAll('^origin/', '').replaceAll('\\^0$', '')
 
@@ -41,18 +43,30 @@ pipeline {
             }
         }
 
+        stage('Extract Commit Info') {
+            steps {
+                script {
+                    env.GIT_COMMITTER = sh(script: "git log -1 --pretty=format:'%an'", returnStdout: true).trim()
+                    env.GIT_COMMIT_MESSAGE = sh(script: "git log -1 --pretty=format:'%s'", returnStdout: true).trim()
+                }
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
                 sh 'docker build -t $IMAGE_NAME .'
             }
         }
 
-        stage('Stop Old Container') {
+        stage('Stop and Remove Old Container') {
             steps {
                 script {
-                    def running = sh(script: "docker ps -q -f name=$CONTAINER_NAME", returnStdout: true).trim()
-                    if (running) {
-                        sh "docker stop $CONTAINER_NAME && docker rm $CONTAINER_NAME"
+                    def existingContainer = sh(script: "docker ps -aq -f name=$CONTAINER_NAME", returnStdout: true).trim()
+                    if (existingContainer) {
+                        echo "Stopping and removing old container: $CONTAINER_NAME"
+                        sh "docker rm -f $CONTAINER_NAME"
+                    } else {
+                        echo "No existing container found with name: $CONTAINER_NAME"
                     }
                 }
             }
@@ -71,7 +85,7 @@ pipeline {
 
         stage('Run New Container') {
             steps {
-                sh 'docker run -d --name $CONTAINER_NAME --env-file $ENV_FILE -p 8000:8000 $IMAGE_NAME'
+                sh 'docker run -d --name $CONTAINER_NAME --env-file $ENV_FILE -p $PORT:8000 $IMAGE_NAME'
             }
         }
     }
@@ -79,29 +93,29 @@ pipeline {
     post {
         success {
             script {
-                def commitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
-                def author = sh(script: "git log -1 --pretty=%an", returnStdout: true).trim()
-
+                def payload = """
+                {
+                    "username": "BiFriends Bot - Jenkins",
+                    "avatar_url": "https://www.jenkins.io/images/logos/jenkins/jenkins.png",
+                    "content": "✅ **Deployment Successful!** \\n **Job:** BiFriendsBE \\n **Build:** #${env.BUILD_NUMBER} \\n **Deployed By:** ${env.GIT_COMMITTER} \\n **Commit:** ${env.GIT_COMMIT_MESSAGE} \\n 🔗 ${JENKINS_URL}job/BiFriendsBE/${env.BUILD_NUMBER}/"
+                }
+                """
                 sh """
-                    curl -H "Content-Type: application/json" -X POST -d '{
-                        "username": "BiFriends Bot - Jenkins",
-                        "avatar_url": "https://www.jenkins.io/images/logos/jenkins/jenkins.png",
-                        "content": "✅ **Deployment Successful!** \\n **Job:** BiFriendsFE \\n **Build:** #\${BUILD_NUMBER} \\n **Deployed By:** \${author} \\n **Commit:** \${commitMessage} \\n 🔗 ${env.BUILD_URL}"
-                    }' $DISCORD_WEBHOOK_URL
+                curl -H "Content-Type: application/json" -X POST -d '${payload}' $DISCORD_WEBHOOK_URL
                 """
             }
         }
         failure {
             script {
-                def commitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
-                def author = sh(script: "git log -1 --pretty=%an", returnStdout: true).trim()
-
+                def payload = """
+                {
+                    "username": "BiFriends Bot - Jenkins",
+                    "avatar_url": "https://www.jenkins.io/images/logos/jenkins/jenkins.png",
+                    "content": "❌ **Deployment Failed!** \\n **Job:** BiFriendsBE \\n **Build:** #${env.BUILD_NUMBER} \\n **Deployed By:** ${env.GIT_COMMITTER} \\n **Commit:** ${env.GIT_COMMIT_MESSAGE} \\n 🔗 ${JENKINS_URL}job/BiFriendsBE/${env.BUILD_NUMBER}/"
+                }
+                """
                 sh """
-                    curl -H "Content-Type: application/json" -X POST -d '{
-                        "username": "BiFriends Bot - Jenkins",
-                        "avatar_url": "https://www.jenkins.io/images/logos/jenkins/jenkins.png",
-                        "content": "❌ **Deployment Failed!** \\n **Job:** BiFriendsFE \\n **Build:** #\${BUILD_NUMBER} \\n **Deployed By:** \${author} \\n **Commit:** \${commitMessage} \\n 🔗 ${env.BUILD_URL}"
-                    }' $DISCORD_WEBHOOK_URL
+                curl -H "Content-Type: application/json" -X POST -d '${payload}' $DISCORD_WEBHOOK_URL
                 """
             }
         }
