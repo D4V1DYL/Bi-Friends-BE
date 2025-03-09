@@ -5,6 +5,7 @@ pipeline {
         IMAGE_NAME = "bi-friends-be"
         CONTAINER_NAME = "fastapi-container"
         ENV_FILE = "/var/lib/jenkins/.env"
+        DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1348391496319111241/Q2-Y2zNTe3MC-PlAsziHoKhD6pWdWb6ZPcLoLqtkUq4f5J5CmmYqcR0uIGddt7ajGVux"
     }
 
     triggers {
@@ -22,9 +23,9 @@ pipeline {
                     
                     // Remove 'origin/' prefix and '^0' suffix if present
                     branchName = branchName.replaceAll('^origin/', '').replaceAll('\\^0$', '')
-                    
+
                     echo "Current branch: ${branchName}"
-                    
+
                     if (branchName != 'remotes/origin/main') {
                         error "Skipping deployment: Changes were pushed to '${branchName}', not 'main'."
                     }
@@ -77,10 +78,32 @@ pipeline {
 
     post {
         success {
-            echo "Deployment Successful!"
+            script {
+                def commitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
+                def author = sh(script: "git log -1 --pretty=%an", returnStdout: true).trim()
+
+                sh """
+                    curl -H "Content-Type: application/json" -X POST -d '{
+                        "username": "BiFriends Bot - Jenkins",
+                        "avatar_url": "https://www.jenkins.io/images/logos/jenkins/jenkins.png",
+                        "content": "✅ **Deployment Successful!** \\n **Job:** BiFriendsFE \\n **Build:** #\${BUILD_NUMBER} \\n **Deployed By:** \${author} \\n **Commit:** \${commitMessage} \\n 🔗 ${env.BUILD_URL}"
+                    }' $DISCORD_WEBHOOK_URL
+                """
+            }
         }
         failure {
-            echo "Deployment Failed!"
+            script {
+                def commitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
+                def author = sh(script: "git log -1 --pretty=%an", returnStdout: true).trim()
+
+                sh """
+                    curl -H "Content-Type: application/json" -X POST -d '{
+                        "username": "BiFriends Bot - Jenkins",
+                        "avatar_url": "https://www.jenkins.io/images/logos/jenkins/jenkins.png",
+                        "content": "❌ **Deployment Failed!** \\n **Job:** BiFriendsFE \\n **Build:** #\${BUILD_NUMBER} \\n **Deployed By:** \${author} \\n **Commit:** \${commitMessage} \\n 🔗 ${env.BUILD_URL}"
+                    }' $DISCORD_WEBHOOK_URL
+                """
+            }
         }
     }
 }
