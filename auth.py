@@ -45,12 +45,19 @@ class ForgotPasswordRequest(BaseModel):
     email: str
 
 class ResetPasswordRequest(BaseModel):
+    email: str
     token: str
     new_password: str
+    confirm_password: str
 
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+class VerifyTokenRequest(BaseModel):
+    email: str
+    token: str
+
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
@@ -167,6 +174,9 @@ def send_reset_email(email, token):
     try:
         # Using SSL instead of TLS for port 465
         context = ssl.create_default_context()
+        context.check_hostname = False  # Tambahkan ini
+        context.verify_mode = ssl.CERT_NONE  # Tambahkan ini untuk mengabaikan verifikasi SSL
+
         with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context) as server:
             server.login(sender_email, sender_password)
             server.send_message(message)
@@ -193,4 +203,52 @@ def check_token_validity(token: str = Depends(oauth2_scheme)):
     except jwt.PyJWTError:
         raise credentials_exception
 
-# Tes
+@router.post('/verify-token')
+@limiter.limit("10/minute")
+def verify_token(request: Request, verify_data: VerifyTokenRequest):
+    response = supabase_client.table('password_reset').select('*')\
+        .eq('email', verify_data.email)\
+        .eq('token', verify_data.token)\
+        .maybe_single().execute()
+
+    if not response :
+        return {"message": "Token tidak valid atau email tidak cocok!", "status": False}
+
+    reset_data = response.data
+    expires_at = datetime.fromisoformat(reset_data['expires_at'])
+
+    if datetime.utcnow() > expires_at:
+        return {"message": "Token sudah kadaluarsa!", "status": False}
+
+    return {"message": "Token valid, lanjutkan reset password.", "status": True}
+
+
+@router.post('/reset-password')
+@limiter.limit("10/minute")
+def reset_password(request: Request, reset_data: ResetPasswordRequest):
+    # 1. Cek apakah new_password dan confirm_password sama
+    if reset_data.new_password != reset_data.confirm_password:
+        raise HTTPException(status_code=400, detail="Password baru dan konfirmasi tidak cocok!")
+
+    # 2. Cek apakah email ada di tabel msuser
+    user_response = supabase_client.table('msuser').select('email')\
+        .eq('email', reset_data.email).maybe_single().execute()
+
+    if not user_response or not getattr(user_response, "data", None):
+        raise HTTPException(status_code=404, detail="Email tidak ditemukan di sistem!")
+
+    # 3. Hash password baru dengan pwd_context (sama seperti register)
+    hashed_password = pwd_context.hash(reset_data.new_password).strip()
+
+    # 4. Update password di tabel msuser
+    update_response = supabase_client.table('msuser').update({'password': hashed_password})\
+        .eq('email', reset_data.email).execute()
+
+    if not update_response.data:
+        raise HTTPException(status_code=500, detail="Gagal memperbarui password!")
+
+    # 5. (Opsional) Hapus token reset password setelah berhasil
+    supabase_client.table('password_reset').delete()\
+        .eq('email', reset_data.email).execute()
+
+    return {"message": "Password berhasil diperbarui!", "status": True}
