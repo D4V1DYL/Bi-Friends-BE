@@ -127,7 +127,7 @@ def forgot_password(request: Request, forgot_data: ForgotPasswordRequest):
     response = supabase_client.table('msuser').select('email').eq('email', forgot_data.email).execute()
     if response.data:
         reset_token = ''.join([str(secrets.randbelow(10)) for _ in range(5)])
-        # supabase_client.table('password_reset').insert({"email": forgot_data.email, "token": reset_token, "created_at": datetime.utcnow().isoformat()}).execute()
+        supabase_client.table('password_reset').insert({"email": forgot_data.email, "token": reset_token, "created_at": datetime.utcnow().isoformat()}).execute()
         send_reset_email(forgot_data.email, reset_token)
         return {"message": "Cek email untuk reset password."}
     raise HTTPException(status_code=404, detail="Email tidak ditemukan!")
