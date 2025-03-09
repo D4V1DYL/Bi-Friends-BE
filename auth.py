@@ -13,6 +13,9 @@ from datetime import datetime, timedelta
 from fastapi.security import OAuth2PasswordBearer
 from typing import Optional
 from passlib.context import CryptContext
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import ssl
 
 router = APIRouter()
 
@@ -63,6 +66,9 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 @router.post('/register')
 @limiter.limit("5/minute")
 def register_user(request: Request,register_data:RegisterRequest):
+    if not register_data.email.endswith("@binus.ac.id"):
+        raise HTTPException(status_code=400, detail="Email harus menggunakan domain @binus.ac.id")
+
     hashed_password = pwd_context.hash(register_data.password).strip()
     response = supabase_client.table('msuser').insert({
         "username": register_data.username,
@@ -122,30 +128,56 @@ def forgot_password(request: Request, forgot_data: ForgotPasswordRequest):
     if response.data:
         reset_token = secrets.token_hex(16)
         # supabase_client.table('password_reset').insert({"email": forgot_data.email, "token": reset_token, "created_at": datetime.utcnow().isoformat()}).execute()
-        send_reset_email(forgot_data.email,"TES" )
+        send_reset_email(forgot_data.email, reset_token)
         return {"message": "Cek email untuk reset password."}
     raise HTTPException(status_code=404, detail="Email tidak ditemukan!")
 
 def send_reset_email(email, token):
-    sender_email = "klmpk8@outlook.com"
-    sender_password = "wellplayed123"
-    smtp_server = "smtp.office365.com"
-    smtp_port = 587
+    # Email configuration for nextora.my.id
+    sender_email = "bifriends@nextora.my.id"
+    sender_password = "wellplayed123"  # Replace with actual password
+    smtp_server = "mail.nextora.my.id"
+    smtp_port = 465  # Using SSL port
 
-    subject = "Reset Password"
-    body = f"Token for reset Password={token}"
-    message = f"From: {sender_email}\nTo: {email}\nSubject: {subject}\n\n{body}"
+    # Create message container
+    message = MIMEMultipart('alternative')
+    message['Subject'] = "Reset Password - Bi-Friends"
+    message['From'] = sender_email
+    message['To'] = email
+    message['X-Priority'] = '1'
 
-    print(f"Mengirim email dari: {sender_email} ke {email}")
+    # Create HTML version of message
+    html = f"""
+    <html>
+      <body>
+        <h2>Password Reset Request</h2>
+        <p>You have requested to reset your password.</p>
+        <p>Your reset token is: <strong>{token}</strong></p>
+        <p>If you didn't request this, please ignore this email.</p>
+        <br>
+        <p>Best regards,</p>
+        <p>Bi-Friends Team</p>
+      </body>
+    </html>
+    """
+
+    part = MIMEText(html, 'html')
+    message.attach(part)
 
     try:
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()
+        # Using SSL instead of TLS for port 465
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context) as server:
             server.login(sender_email, sender_password)
-            server.sendmail(sender_email, email, message)
-            print("Email berhasil dikirim.")
+            server.send_message(message)
+            print(f"Reset password email sent successfully to {email}")
+
     except Exception as e:
-        print(f"Error mengirim email: {e}")
+        print(f"Failed to send email: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to send reset email: {str(e)}"
+        )
 
 
 @router.get("/check-token")
