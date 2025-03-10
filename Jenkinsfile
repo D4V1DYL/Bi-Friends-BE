@@ -97,7 +97,19 @@ pipeline {
                 {
                     "username": "BiFriends Bot - Jenkins",
                     "avatar_url": "https://www.jenkins.io/images/logos/jenkins/jenkins.png",
-                    "content": "✅ **Deployment Successful!** \\n **Job:** BiFriendsBE \\n **Build:** #${env.BUILD_NUMBER} \\n **Deployed By:** ${env.GIT_COMMITTER} \\n **Commit:** ${env.GIT_COMMIT_MESSAGE} \\n 🔗 ${JENKINS_URL}job/BiFriendsBE/${env.BUILD_NUMBER}/"
+                    "embeds": [
+                        {
+                            "title": "✅ Deployment Successful!",
+                            "description": "**Job:** BiFriends-BE\\n**Build:** #${env.BUILD_NUMBER}\\n**Deployed By:** ${env.GIT_COMMITTER}\\n**Commit:** ${env.GIT_COMMIT_MESSAGE}",
+                            "color": 3066993,
+                            "url": "${JENKINS_URL}job/BiFriendsBE/${env.BUILD_NUMBER}/",
+                            "footer": {
+                                "text": "BiFriends Deployment",
+                                "icon_url": "https://www.jenkins.io/images/logos/jenkins/jenkins.png"
+                            },
+                            "timestamp": "${new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC'))}"
+                        }
+                    ]
                 }
                 """
                 sh """
@@ -111,7 +123,19 @@ pipeline {
                 {
                     "username": "BiFriends Bot - Jenkins",
                     "avatar_url": "https://www.jenkins.io/images/logos/jenkins/jenkins.png",
-                    "content": "❌ **Deployment Failed!** \\n **Job:** BiFriendsBE \\n **Build:** #${env.BUILD_NUMBER} \\n **Deployed By:** ${env.GIT_COMMITTER} \\n **Commit:** ${env.GIT_COMMIT_MESSAGE} \\n 🔗 ${JENKINS_URL}job/BiFriendsBE/${env.BUILD_NUMBER}/"
+                    "embeds": [
+                        {
+                            "title": "❌ Deployment Failed!",
+                            "description": "**Job:** BiFriends-BE\\n**Build:** #${env.BUILD_NUMBER}\\n**Deployed By:** ${env.GIT_COMMITTER}\\n**Commit:** ${env.GIT_COMMIT_MESSAGE}",
+                            "color": 15158332,
+                            "url": "${JENKINS_URL}job/BiFriendsBE/${env.BUILD_NUMBER}/",
+                            "footer": {
+                                "text": "BiFriends Deployment",
+                                "icon_url": "https://www.jenkins.io/images/logos/jenkins/jenkins.png"
+                            },
+                            "timestamp": "${new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC'))}"
+                        }
+                    ]
                 }
                 """
                 sh """
