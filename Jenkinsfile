@@ -28,10 +28,6 @@ pipeline {
                     branchName = branchName.replaceAll('^origin/', '').replaceAll('\\^0$', '')
 
                     echo "Current branch: ${branchName}"
-
-                    if (branchName != 'remotes/origin/main') {
-                        error "Skipping deployment: Changes were pushed to '${branchName}', not 'main'."
-                    }
                 }
             }
         }
