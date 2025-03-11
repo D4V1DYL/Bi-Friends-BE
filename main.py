@@ -68,4 +68,3 @@ async def test_supabase_connection(request: Request):
             }
         )
 
-# Test Trigger
