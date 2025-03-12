@@ -96,9 +96,9 @@ def register_user(request: Request,register_data:RegisterRequest):
 @router.post('/login', response_model=Token)
 @limiter.limit("5/minute")
 def login(request: Request, login_data: LoginRequest):
-    response = supabase_client.table('msuser').select('password, nim').eq('nim', login_data.nim).single().execute()
+    response = supabase_client.table('msuser').select('password, nim').eq('nim', login_data.nim).maybe_single().execute()
     
-    if response.data is None or len(response.data) == 0:
+    if response is None or len(response.data) == 0:
         raise HTTPException(status_code=401, detail="NIM atau password salah!")
 
     user = response.data
