@@ -186,7 +186,7 @@ async def get_forum_replies(post_id: int):
         result = supabase_client.table("msforum_reply") \
             .select("reply_id, parent_reply_id, reply_text, created_at, user_id") \
             .eq("post_id", post_id) \
-            .order("created_at", asc=True) \
+            .order("created_at", desc=False) \
             .execute()
 
         replies = result.data
