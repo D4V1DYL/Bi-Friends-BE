@@ -141,3 +141,41 @@ async def get_forums(limit: int = Query(10), offset: int = Query(0)):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+    
+class ReplyInput(BaseModel):
+    post_id: int
+    reply_text: str
+    parent_reply_id: Optional[int] = None
+    attachment: Optional[str] = ""
+
+
+# Endpoint untuk membalas forum
+@router.post("/reply_forum")
+async def reply_forum(data: ReplyInput, user_id: int = Depends(get_current_user)):
+    try:
+        # Dapatkan post_id dari request (yang ada di msisi_forum)
+        post_id = data.post_id
+
+        # Cek apakah post_id ada di msisi_forum (bukan msforum)
+        forum_check = supabase_client.table("msisi_forum").select("post_id").eq("post_id", post_id).execute()
+        
+        if not forum_check.data:
+            raise HTTPException(status_code=404, detail="Forum not found with the given post_id")
+
+        # Jika reply ke balasan lain, parent_reply_id akan otomatis diset
+        parent_reply_id = data.parent_reply_id if data.parent_reply_id else None
+
+        # Insert balasan ke dalam msforum_reply
+        new_reply = supabase_client.table("msforum_reply").insert({
+            "post_id": post_id,  # Gunakan post_id yang ada di msisi_forum
+            "user_id": user_id,  # ID user yang membalas
+            "reply_text": data.reply_text,  # Teks balasan
+            "parent_reply_id": parent_reply_id,  # Set parent_reply_id sebagai None atau ID balasan yang dibalas
+            "attachment": data.attachment or ""  # Jika tidak ada attachment, default ke kosong
+        }).execute()
+
+        return {"message": "Reply inserted", "reply_id": new_reply.data[0]["reply_id"]}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
