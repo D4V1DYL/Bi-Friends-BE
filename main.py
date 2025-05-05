@@ -9,6 +9,8 @@ from slowapi.errors import RateLimitExceeded
 from config import supabase_client
 from datetime import datetime
 from auth import router as auth_router
+from Forum import router as forum_router
+
 # from dashboard import router as dashboard_router
 # from product import router as product_router
 # from superadmin import router as superadmin_router
@@ -22,7 +24,8 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
 
-app.include_router(auth_router, prefix="/auth")
+app.include_router(auth_router, prefix="/auth",tags=["Auth"])
+app.include_router(forum_router, prefix="/Forum",tags=["Forum"])
 # app.include_router(dashboard_router, prefix="/dashboard")
 
 
