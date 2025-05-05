@@ -95,7 +95,7 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
             "subject_id": subject_id,
             "description": data.description,
             "title": data.title,
-            "event_id": None  # sementara None
+            "event_id": None
         }).execute()
         post_id = new_forum.data[0]['post_id']
 
@@ -118,7 +118,7 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
             "forum_text": data.forum_text,
             "user_id": user_id,
             "post_id": post_id,
-            "attachment": ""  # bisa ditambahkan nanti kalau ada
+            "attachment": ""  # optional
         }).execute()
 
         return {"message": "Forum created successfully", "post_id": post_id}
