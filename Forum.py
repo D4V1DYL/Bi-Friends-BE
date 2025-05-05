@@ -179,3 +179,45 @@ async def reply_forum(data: ReplyInput, user_id: int = Depends(get_current_user)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
+@router.get("/forum_replies/{post_id}")
+async def get_forum_replies(post_id: int):
+    try:
+        # Ambil semua balasan berdasarkan post_id
+        result = supabase_client.table("msforum_reply") \
+            .select("reply_id, parent_reply_id, reply_text, created_at, user_id") \
+            .eq("post_id", post_id) \
+            .order("created_at", asc=True) \
+            .execute()
+
+        replies = result.data
+
+        # Cek apakah ada reply
+        if not replies:
+            return {"post_id": post_id, "replies": []}
+
+        # Buat dict untuk menyimpan semua reply berdasarkan reply_id
+        reply_map = {}
+
+        for reply in replies:
+            # Tambahkan field children untuk nested reply
+            reply["children"] = []
+            reply_map[reply["reply_id"]] = reply
+
+        structured_replies = []
+
+        for reply in replies:
+            parent_id = reply.get("parent_reply_id")
+            if parent_id:
+                # Masukkan ke children parent jika reply ke reply lain
+                parent = reply_map.get(parent_id)
+                if parent:
+                    parent["children"].append(reply)
+            else:
+                # Jika tidak punya parent_reply_id, berarti ini komentar utama
+                structured_replies.append(reply)
+
+        return {"post_id": post_id, "replies": structured_replies}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
