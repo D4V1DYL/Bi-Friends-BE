@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Query
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordBearer
 from datetime import datetime
@@ -122,6 +122,22 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
         }).execute()
 
         return {"message": "Forum created successfully", "post_id": post_id}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
+@router.get("/list-forums")
+async def get_forums(limit: int = Query(10), offset: int = Query(0)):
+    try:
+        # Pakai relasi fk_forum_event karena msforum.event_id → msevent.event_id
+        response = supabase_client.table("msforum").select("""
+            *,
+            msuser(username, profile_picture),
+            mssubject(subject_name),
+            msevent!fk_forum_event(event_name, event_date)
+        """).order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+
+        return {"data": response.data}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
