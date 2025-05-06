@@ -113,18 +113,6 @@ def login(request: Request, login_data: LoginRequest):
     access_token = create_access_token(data={"sub": user['nim'].strip()})
     return {"access_token": access_token, "token_type": "bearer"}
 
-#Backend Forgot Password()
-# @router.post('/forgot-password')
-# @limiter.limit("3/minute")
-# def forgot_password(request: ForgotPasswordRequest):
-#     response = supabase_client.table('msuser').select('email').eq('nim', request.nim).execute()
-#     if response.data:
-#         reset_token = secrets.token_hex(16)
-#         supabase_client.table('password_resets').insert({"nim": request.nim, "token": reset_token, "created_at": datetime.utcnow()}).execute()
-#         send_reset_email(response.data[0]['email'], reset_token)
-#         return {"message": "Cek email untuk reset password."}
-#     raise HTTPException(status_code=404, detail="NIM tidak ditemukan!")
-
 @router.post('/forgot-password')
 @limiter.limit("3/minute")
 def forgot_password(request: Request, forgot_data: ForgotPasswordRequest):
@@ -140,20 +128,17 @@ def forgot_password(request: Request, forgot_data: ForgotPasswordRequest):
     raise HTTPException(status_code=404, detail="Email tidak ditemukan!")
 
 def send_reset_email(email, token):
-    # Email configuration for nextora.my.id
     sender_email = "bifriends@nextora.my.id"
-    sender_password = "wellplayed123"  # Replace with actual password
+    sender_password = "wellplayed123"
     smtp_server = "mail.nextora.my.id"
-    smtp_port = 465  # Using SSL port
+    smtp_port = 465
 
-    # Create message container
     message = MIMEMultipart('alternative')
     message['Subject'] = "Reset Password - Bi-Friends"
     message['From'] = sender_email
     message['To'] = email
     message['X-Priority'] = '1'
 
-    # Create HTML version of message
     html = f"""
     <html>
       <body>
@@ -172,10 +157,9 @@ def send_reset_email(email, token):
     message.attach(part)
 
     try:
-        # Using SSL instead of TLS for port 465
         context = ssl.create_default_context()
-        context.check_hostname = False  # Tambahkan ini
-        context.verify_mode = ssl.CERT_NONE  # Tambahkan ini untuk mengabaikan verifikasi SSL
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
 
         with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context) as server:
             server.login(sender_email, sender_password)
@@ -226,28 +210,23 @@ def verify_token(request: Request, verify_data: VerifyTokenRequest):
 @router.post('/reset-password')
 @limiter.limit("10/minute")
 def reset_password(request: Request, reset_data: ResetPasswordRequest):
-    # 1. Cek apakah new_password dan confirm_password sama
     if reset_data.new_password != reset_data.confirm_password:
         raise HTTPException(status_code=400, detail="Password baru dan konfirmasi tidak cocok!")
 
-    # 2. Cek apakah email ada di tabel msuser
     user_response = supabase_client.table('msuser').select('email')\
         .eq('email', reset_data.email).maybe_single().execute()
 
     if not user_response or not getattr(user_response, "data", None):
         raise HTTPException(status_code=404, detail="Email tidak ditemukan di sistem!")
 
-    # 3. Hash password baru dengan pwd_context (sama seperti register)
     hashed_password = pwd_context.hash(reset_data.new_password).strip()
 
-    # 4. Update password di tabel msuser
     update_response = supabase_client.table('msuser').update({'password': hashed_password})\
         .eq('email', reset_data.email).execute()
 
     if not update_response.data:
         raise HTTPException(status_code=500, detail="Gagal memperbarui password!")
 
-    # 5. (Opsional) Hapus token reset password setelah berhasil
     supabase_client.table('password_reset').delete()\
         .eq('email', reset_data.email).execute()
 

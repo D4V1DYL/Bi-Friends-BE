@@ -8,7 +8,6 @@ import jwt
 
 router = APIRouter()
 
-# Token configuration
 SECRET_KEY = "27aa6d1a-519c-4d88-b265-cda5808c0fe5"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
@@ -47,7 +46,7 @@ class ForumInput(BaseModel):
     forum_text: str
     subject_name: str
     event_name: str
-    event_date: str  # Format: YYYY-MM-DD
+    event_date: str
     location_name: str
     location_address: str
     location_capacity: int
@@ -60,7 +59,6 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
     now = datetime.utcnow().isoformat()
 
     try:
-        # === Step 1: Subject ===
         subject = supabase_client.table("mssubject").select("subject_id").eq("subject_name", data.subject_name).execute()
         if not subject.data:
             new_subject = supabase_client.table("mssubject").insert({"subject_name": data.subject_name}).execute()
@@ -68,7 +66,6 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
         else:
             subject_id = subject.data[0]['subject_id']
 
-        # === Step 2: Location ===
         location = supabase_client.table("mslocation").select("location_id") \
             .eq("location_name", data.location_name) \
             .eq("address", data.location_address) \
@@ -88,7 +85,6 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
         else:
             location_id = location.data[0]['location_id']
 
-        # === Step 3: Buat Forum terlebih dahulu tanpa event_id ===
         new_forum = supabase_client.table("msforum").insert({
             "user_id": user_id,
             "created_at": now,
@@ -99,7 +95,6 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
         }).execute()
         post_id = new_forum.data[0]['post_id']
 
-        # === Step 4: Buat Event dengan related_post_id = post_id ===
         new_event = supabase_client.table("msevent").insert({
             "event_name": data.event_name,
             "event_date": data.event_date,
@@ -110,15 +105,13 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
         }).execute()
         event_id = new_event.data[0]['event_id']
 
-        # === Step 5: Update Forum dengan event_id ===
         supabase_client.table("msforum").update({"event_id": event_id}).eq("post_id", post_id).execute()
 
-        # === Step 6: Insert forum_text ke msisi_forum ===
         supabase_client.table("msisi_forum").insert({
             "forum_text": data.forum_text,
             "user_id": user_id,
             "post_id": post_id,
-            "attachment": ""  # optional
+            "attachment": ""
         }).execute()
 
         return {"message": "Forum created successfully", "post_id": post_id}
@@ -129,7 +122,6 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
 @router.get("/list-forums")
 async def get_forums(limit: int = Query(10), offset: int = Query(0)):
     try:
-        # Pakai relasi fk_forum_event karena msforum.event_id → msevent.event_id
         response = supabase_client.table("msforum").select("""
             *,
             msuser(username, profile_picture),
@@ -149,29 +141,24 @@ class ReplyInput(BaseModel):
     attachment: Optional[str] = ""
 
 
-# Endpoint untuk membalas forum
 @router.post("/reply_forum")
 async def reply_forum(data: ReplyInput, user_id: int = Depends(get_current_user)):
     try:
-        # Dapatkan post_id dari request (yang ada di msisi_forum)
         post_id = data.post_id
 
-        # Cek apakah post_id ada di msisi_forum (bukan msforum)
         forum_check = supabase_client.table("msisi_forum").select("post_id").eq("post_id", post_id).execute()
         
         if not forum_check.data:
             raise HTTPException(status_code=404, detail="Forum not found with the given post_id")
 
-        # Jika reply ke balasan lain, parent_reply_id akan otomatis diset
         parent_reply_id = data.parent_reply_id if data.parent_reply_id else None
 
-        # Insert balasan ke dalam msforum_reply
         new_reply = supabase_client.table("msforum_reply").insert({
-            "post_id": post_id,  # Gunakan post_id yang ada di msisi_forum
-            "user_id": user_id,  # ID user yang membalas
-            "reply_text": data.reply_text,  # Teks balasan
-            "parent_reply_id": parent_reply_id,  # Set parent_reply_id sebagai None atau ID balasan yang dibalas
-            "attachment": data.attachment or ""  # Jika tidak ada attachment, default ke kosong
+            "post_id": post_id,
+            "user_id": user_id,
+            "reply_text": data.reply_text,
+            "parent_reply_id": parent_reply_id,
+            "attachment": data.attachment or ""
         }).execute()
 
         return {"message": "Reply inserted", "reply_id": new_reply.data[0]["reply_id"]}
@@ -182,7 +169,6 @@ async def reply_forum(data: ReplyInput, user_id: int = Depends(get_current_user)
 @router.get("/forum_replies/{post_id}")
 async def get_forum_replies(post_id: int):
     try:
-        # Ambil semua balasan berdasarkan post_id
         result = supabase_client.table("msforum_reply") \
             .select("reply_id, parent_reply_id, reply_text, created_at, user_id") \
             .eq("post_id", post_id) \
@@ -191,15 +177,12 @@ async def get_forum_replies(post_id: int):
 
         replies = result.data
 
-        # Cek apakah ada reply
         if not replies:
             return {"post_id": post_id, "replies": []}
 
-        # Buat dict untuk menyimpan semua reply berdasarkan reply_id
         reply_map = {}
 
         for reply in replies:
-            # Tambahkan field children untuk nested reply
             reply["children"] = []
             reply_map[reply["reply_id"]] = reply
 
@@ -208,12 +191,10 @@ async def get_forum_replies(post_id: int):
         for reply in replies:
             parent_id = reply.get("parent_reply_id")
             if parent_id:
-                # Masukkan ke children parent jika reply ke reply lain
                 parent = reply_map.get(parent_id)
                 if parent:
                     parent["children"].append(reply)
             else:
-                # Jika tidak punya parent_reply_id, berarti ini komentar utama
                 structured_replies.append(reply)
 
         return {"post_id": post_id, "replies": structured_replies}
