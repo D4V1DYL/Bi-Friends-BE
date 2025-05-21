@@ -10,6 +10,7 @@ from config import supabase_client
 from datetime import datetime
 from auth import router as auth_router
 from Forum import router as forum_router
+from Profile import router as profile_router
 
 # from dashboard import router as dashboard_router
 # from product import router as product_router
@@ -27,7 +28,7 @@ app.add_middleware(SlowAPIMiddleware)
 app.include_router(auth_router, prefix="/auth",tags=["Auth"])
 app.include_router(forum_router, prefix="/Forum",tags=["Forum"])
 # app.include_router(dashboard_router, prefix="/dashboard")
-
+app.include_router(profile_router, prefix="/profile", tags=["Profile"])
 
 app.middleware("https")(log_requests)
 app.add_middleware(

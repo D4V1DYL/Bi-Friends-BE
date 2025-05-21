@@ -129,7 +129,9 @@ async def get_forums(limit: int = Query(10), offset: int = Query(0)):
             msevent!fk_forum_event(event_name, event_date)
         """).order("created_at", desc=True).range(offset, offset + limit - 1).execute()
 
-        return {"data": response.data}
+        forum_data = response.data
+
+        return {"data": forum_data}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")

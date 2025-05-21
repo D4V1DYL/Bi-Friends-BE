@@ -35,3 +35,4 @@ python-dotenv==1.0.0
 supabase
 postgrest
 PyJWT
+cloudinary

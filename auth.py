@@ -96,7 +96,7 @@ def register_user(request: Request,register_data:RegisterRequest):
 @router.post('/login', response_model=Token)
 @limiter.limit("5/minute")
 def login(request: Request, login_data: LoginRequest):
-    response = supabase_client.table('msuser').select('password, nim').eq('nim', login_data.nim).maybe_single().execute()
+    response = supabase_client.table('msuser').select('user_id, password, nim').eq('nim', login_data.nim).maybe_single().execute()
     
     if response is None or len(response.data) == 0:
         raise HTTPException(status_code=401, detail="NIM atau password salah!")
@@ -110,8 +110,14 @@ def login(request: Request, login_data: LoginRequest):
     if not pwd_context.verify(login_data.password, hashed_password):
         raise HTTPException(status_code=401, detail="NIM atau password salah!")
 
-    access_token = create_access_token(data={"sub": user['nim'].strip()})
+    # Sertakan user_id dalam token
+    access_token = create_access_token(data={
+        "sub": user['nim'].strip(),
+        "user_id": user["user_id"]
+    })
+
     return {"access_token": access_token, "token_type": "bearer"}
+
 
 @router.post('/forgot-password')
 @limiter.limit("3/minute")
