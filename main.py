@@ -11,6 +11,7 @@ from datetime import datetime
 from auth import router as auth_router
 from Forum import router as forum_router
 from Profile import router as profile_router
+from Chat import router as chat_router
 
 # from dashboard import router as dashboard_router
 # from product import router as product_router
@@ -29,6 +30,7 @@ app.include_router(auth_router, prefix="/auth",tags=["Auth"])
 app.include_router(forum_router, prefix="/Forum",tags=["Forum"])
 # app.include_router(dashboard_router, prefix="/dashboard")
 app.include_router(profile_router, prefix="/profile", tags=["Profile"])
+app.include_router(chat_router, prefix="/chat", tags=["Chat"])
 
 app.middleware("https")(log_requests)
 app.add_middleware(

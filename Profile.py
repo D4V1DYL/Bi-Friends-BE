@@ -126,8 +126,8 @@ async def get_friend_list(current_user_id: int = Depends(get_current_user_id)):
 
     if not response.data:
         return {"message": "Tidak ada teman ditemukan.", "friends": []}
-
     # Format hasil
+
     friends = [
         {
             "user_id": friend["user_id_2"],
