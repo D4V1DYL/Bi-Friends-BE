@@ -210,8 +210,8 @@ async def list_events(limit: int = Query(10), offset: int = Query(0)):
         response = supabase_client.table("msevent").select("""
             event_name,
             event_date,
-            start_time,
-            end_time,
+            start_date,
+            end_date,
             mslocation(location_name, capacity)
         """).order("event_date", desc=True).range(offset, offset + limit - 1).execute()
 
