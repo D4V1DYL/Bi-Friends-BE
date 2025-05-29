@@ -126,7 +126,7 @@ async def get_forums(limit: int = Query(10), offset: int = Query(0)):
             *,
             msuser(username, profile_picture),
             mssubject(subject_name),
-            msevent!fk_forum_event(event_name, event_date)
+            msevent!fk_forum_event(event_name, event_date, mslocation(location_name))
         """).order("created_at", desc=True).range(offset, offset + limit - 1).execute()
 
         forum_data = response.data
