@@ -127,12 +127,42 @@ async def websocket_chat(websocket: WebSocket, user_id: int, token: str):
         manager.disconnect(user_id)
 
 @router.get("/search-users")
-async def search_users(q: str = Query(..., min_length=1)):
+async def search_users(
+    q: str = Query(..., min_length=1),
+    current_user_id: int = Query(...)
+):
     try:
-        response = supabase_client.table("msuser").select("user_id, username, profile_picture")\
-            .ilike("username", f"%{q}%").limit(10).execute()
+        # Ambil semua ID teman dari msfriend_list
+        friends_1 = supabase_client.table("msfriend_list")\
+            .select("user_id_2")\
+            .eq("user_id_1", current_user_id).execute()
 
-        return {"data": response.data}
+        friends_2 = supabase_client.table("msfriend_list")\
+            .select("user_id_1")\
+            .eq("user_id_2", current_user_id).execute()
+
+        friend_ids = set()
+
+        for f in friends_1.data:
+            friend_ids.add(f['user_id_2'])
+        for f in friends_2.data:
+            friend_ids.add(f['user_id_1'])
+
+        if not friend_ids:
+            return {"data": []}
+
+        # Query msuser yang termasuk friend_ids dan ILIKE nama
+        # Supabase Python SDK tidak support `.in_()` dengan list langsung,
+        # jadi kita bisa filter di Python setelah ambil username ILIKE
+
+        response = supabase_client.table("msuser")\
+            .select("user_id, username, profile_picture")\
+            .ilike("username", f"%{q}%").execute()
+
+        # Filter hasil supaya hanya friend_ids yang masuk
+        result = [user for user in response.data if user["user_id"] in friend_ids]
+
+        return {"data": result[:10]}  # limit 10
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
