@@ -40,6 +40,8 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     nim: str
     password: str
+    remember_me: Optional[bool] = False
+
 
 class ForgotPasswordRequest(BaseModel):
     email: str
@@ -110,13 +112,21 @@ def login(request: Request, login_data: LoginRequest):
     if not pwd_context.verify(login_data.password, hashed_password):
         raise HTTPException(status_code=401, detail="NIM atau password salah!")
 
+    # ⏳ Tentukan durasi token
+    expire_minutes = 60 * 24  if login_data.remember_me else ACCESS_TOKEN_EXPIRE_MINUTES
+    access_token_expires = timedelta(minutes=expire_minutes)
+
     # Sertakan user_id dalam token
-    access_token = create_access_token(data={
-        "sub": user['nim'].strip(),
-        "user_id": user["user_id"]
-    })
+    access_token = create_access_token(
+        data={
+            "sub": user['nim'].strip(),
+            "user_id": user["user_id"]
+        },
+        expires_delta=access_token_expires
+    )
 
     return {"access_token": access_token, "token_type": "bearer"}
+
 
 
 @router.post('/forgot-password')
