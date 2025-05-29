@@ -1,4 +1,4 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, Depends,HTTPException
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, Depends,HTTPException,Query
 import jwt
 from config import supabase_client
 from datetime import datetime
@@ -125,3 +125,14 @@ async def websocket_chat(websocket: WebSocket, user_id: int, token: str):
 
     except WebSocketDisconnect:
         manager.disconnect(user_id)
+
+@router.get("/search-users")
+async def search_users(q: str = Query(..., min_length=1)):
+    try:
+        response = supabase_client.table("msuser").select("user_id, username, profile_picture")\
+            .ilike("username", f"%{q}%").limit(10).execute()
+
+        return {"data": response.data}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
