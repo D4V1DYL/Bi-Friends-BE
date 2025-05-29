@@ -126,7 +126,7 @@ async def get_forums(limit: int = Query(10), offset: int = Query(0)):
             *,
             msuser(username, profile_picture),
             mssubject(subject_name),
-            msevent!fk_forum_event(event_name, event_date, mslocation(location_name))
+            msevent!fk_forum_event(event_name, event_date, start_date, end_date, mslocation(location_name))
         """).order("created_at", desc=True).range(offset, offset + limit - 1).execute()
 
         forum_data = response.data
@@ -204,3 +204,18 @@ async def get_forum_replies(post_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
+@router.get("/list-events")
+async def list_events(limit: int = Query(10), offset: int = Query(0)):
+    try:
+        response = supabase_client.table("msevent").select("""
+            event_name,
+            event_date,
+            start_time,
+            end_time,
+            mslocation(location_name, capacity)
+        """).order("event_date", desc=True).range(offset, offset + limit - 1).execute()
+
+        return {"events": response.data}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
