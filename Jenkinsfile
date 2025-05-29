@@ -101,7 +101,7 @@ pipeline {
                             "title": "✅ Deployment Successful!",
                             "description": "**Job:** BiFriends-BE\\n**Build:** #${env.BUILD_NUMBER}\\n**Deployed By:** ${env.GIT_COMMITTER}\\n**Commit:** [${env.GIT_COMMIT_MESSAGE}](${commitUrl})",
                             "color": 3066993,
-                            "url": "${JENKINS_URL}job/BiFriendsBE/${env.BUILD_NUMBER}/",
+                            "url": "${JENKINS_URL}job/BiFriends-BE/${env.BUILD_NUMBER}/",
                             "footer": {
                                 "text": "BiFriends Deployment",
                                 "icon_url": "https://www.jenkins.io/images/logos/jenkins/jenkins.png"
@@ -128,7 +128,7 @@ pipeline {
                             "title": "❌ Deployment Failed!",
                             "description": "**Job:** BiFriends-BE\\n**Build:** #${env.BUILD_NUMBER}\\n**Deployed By:** ${env.GIT_COMMITTER}\\n**Commit:** [${env.GIT_COMMIT_MESSAGE}](${commitUrl})",
                             "color": 15158332,
-                            "url": "${JENKINS_URL}job/BiFriendsBE/${env.BUILD_NUMBER}/",
+                            "url": "${JENKINS_URL}job/BiFriends-BE/${env.BUILD_NUMBER}/",
                             "footer": {
                                 "text": "BiFriends Deployment",
                                 "icon_url": "https://www.jenkins.io/images/logos/jenkins/jenkins.png"
