@@ -219,3 +219,35 @@ async def list_events(limit: int = Query(10), offset: int = Query(0)):
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
+@router.delete("/delete-forum/{post_id}")
+async def delete_forum(post_id: int, user_id: int = Depends(get_current_user)):
+    try:
+        # Cek kepemilikan forum
+        forum = supabase_client.table("msforum").select("*").eq("post_id", post_id).maybe_single().execute()
+        if not forum.data:
+            raise HTTPException(status_code=404, detail="Forum tidak ditemukan")
+        if forum.data['user_id'] != user_id:
+            raise HTTPException(status_code=403, detail="Bukan pemilik forum")
+
+        # 1. Hapus semua reply
+        supabase_client.table("msforum_reply").delete().eq("post_id", post_id).execute()
+
+        # 2. Hapus isi forum
+        supabase_client.table("msisi_forum").delete().eq("post_id", post_id).execute()
+
+        # 4. Null-kan foreign key event_id supaya bisa hapus event
+        supabase_client.table("msforum").update({"event_id": None}).eq("post_id", post_id).execute()
+
+        # 5. Hapus event jika ada
+        event_id = forum.data.get("event_id")
+        if event_id:
+            supabase_client.table("msevent").delete().eq("event_id", event_id).execute()
+
+        # 6. Terakhir hapus forum
+        supabase_client.table("msforum").delete().eq("post_id", post_id).execute()
+
+        return {"detail": "Forum berhasil dihapus"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")

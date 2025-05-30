@@ -38,7 +38,8 @@ async def get_user_profile(user_id: int):
             user_id,
             username,
             profile_picture,
-            gender
+            gender,
+            email
         """).eq("user_id", user_id).single().execute()
 
         if not response.data:
@@ -54,6 +55,7 @@ async def update_user_profile(
     user_id: int,
     username: Optional[str] = Form(None),
     gender: Optional[str] = Form(None),
+    bio: Optional[str] = Form(None),
     profile_picture: Optional[UploadFile] = File(None),
     current_user_id: int = Depends(get_current_user_id)
 ):
@@ -66,6 +68,8 @@ async def update_user_profile(
         update_data["username"] = username
     if gender:
         update_data["gender"] = gender
+    if bio:
+        update_data["bio"] = bio
     if profile_picture:
         upload_result = cloudinary.uploader.upload(profile_picture.file)
         update_data["profile_picture"] = upload_result.get("secure_url")
@@ -85,7 +89,8 @@ async def update_user_profile(
             "nim": user["nim"].strip(),
             "username": user["username"],
             "gender": user["gender"],
-            "profile_picture": user["profile_picture"]
+            "profile_picture": user["profile_picture"],
+            "bio": user["bio"]
         }
         return {"message": "Profil berhasil diperbarui", "data": filtered_user}
 
