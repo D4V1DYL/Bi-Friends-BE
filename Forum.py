@@ -39,19 +39,20 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 
     return response.data['user_id']
 
-
 class ForumInput(BaseModel):
     title: str
     description: str
-    forum_text: str
-    subject_name: str
     event_name: str
     event_date: str
+    start_date: Optional[str]
+    end_date: Optional[str]
     location_name: str
-    location_address: str
+    location_address: Optional[str] = ""
     location_capacity: int
     location_latitude: float
     location_longitude: float
+    forum_text: Optional[str] = ""
+    subject_id: int  # NEW FIELD
 
 
 @router.post("/create_forum")
@@ -59,13 +60,6 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
     now = datetime.utcnow().isoformat()
 
     try:
-        subject = supabase_client.table("mssubject").select("subject_id").eq("subject_name", data.subject_name).execute()
-        if not subject.data:
-            new_subject = supabase_client.table("mssubject").insert({"subject_name": data.subject_name}).execute()
-            subject_id = new_subject.data[0]['subject_id']
-        else:
-            subject_id = subject.data[0]['subject_id']
-
         location = supabase_client.table("mslocation").select("location_id") \
             .eq("location_name", data.location_name) \
             .eq("address", data.location_address) \
@@ -88,16 +82,22 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
         new_forum = supabase_client.table("msforum").insert({
             "user_id": user_id,
             "created_at": now,
-            "subject_id": subject_id,
             "description": data.description,
             "title": data.title,
-            "event_id": None
+            "event_id": None,
+            "subject_id": data.subject_id  # ADDED SUBJECT ID
         }).execute()
         post_id = new_forum.data[0]['post_id']
+
+        # Convert time inputs to full datetime
+        start_datetime = f"{data.event_date}T{data.start_date}:00Z" if data.start_date else None
+        end_datetime = f"{data.event_date}T{data.end_date}:00Z" if data.end_date else None
 
         new_event = supabase_client.table("msevent").insert({
             "event_name": data.event_name,
             "event_date": data.event_date,
+            "start_date": start_datetime,
+            "end_date": end_datetime,
             "related_post_id": post_id,
             "created_at": now,
             "location_id": location_id,
@@ -119,15 +119,22 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
+
+
 @router.get("/list-forums")
 async def get_forums(limit: int = Query(10), offset: int = Query(0)):
     try:
         response = supabase_client.table("msforum").select("""
-            *,
-            msuser(username, profile_picture),
-            mssubject(subject_name),
-            msevent!fk_forum_event(event_name, event_date, start_date, end_date, mslocation(location_name))
-        """).order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+        *,
+        msuser(username, profile_picture),
+        mssubject(subject_name),
+        msevent!fk_forum_event(
+        event_name,
+        event_date,
+        start_date,
+        end_date,
+        location:mslocation(location_name)
+        )""").order("created_at", desc=True).range(offset, offset + limit - 1).execute()
 
         forum_data = response.data
 
@@ -223,31 +230,42 @@ async def list_events(limit: int = Query(10), offset: int = Query(0)):
 @router.delete("/delete-forum/{post_id}")
 async def delete_forum(post_id: int, user_id: int = Depends(get_current_user)):
     try:
-        # Cek kepemilikan forum
         forum = supabase_client.table("msforum").select("*").eq("post_id", post_id).maybe_single().execute()
         if not forum.data:
             raise HTTPException(status_code=404, detail="Forum tidak ditemukan")
         if forum.data['user_id'] != user_id:
             raise HTTPException(status_code=403, detail="Bukan pemilik forum")
 
-        # 1. Hapus semua reply
+        event_id = forum.data.get("event_id")  # <-- Dapatkan event_id dulu sebelum di-null-kan
+
+        # Hapus semua reply
         supabase_client.table("msforum_reply").delete().eq("post_id", post_id).execute()
 
-        # 2. Hapus isi forum
+        # Hapus isi forum
         supabase_client.table("msisi_forum").delete().eq("post_id", post_id).execute()
 
-        # 4. Null-kan foreign key event_id supaya bisa hapus event
-        supabase_client.table("msforum").update({"event_id": None}).eq("post_id", post_id).execute()
-
-        # 5. Hapus event jika ada
-        event_id = forum.data.get("event_id")
+        # Ambil location_id dulu sebelum hapus event
+        location_id = None
         if event_id:
+            event = supabase_client.table("msevent").select("location_id").eq("event_id", event_id).maybe_single().execute()
+            location_id = event.data.get("location_id") if event.data else None
+
+            # Hapus event
             supabase_client.table("msevent").delete().eq("event_id", event_id).execute()
 
-        # 6. Terakhir hapus forum
+        # Hapus forum terakhir (sekarang baru null-kan event_id, tapi udah telat buat kasus kamu, jadi langsung hapus)
         supabase_client.table("msforum").delete().eq("post_id", post_id).execute()
+
+        # Hapus lokasi jika tidak dipakai oleh event lain
+        if location_id:
+            used_elsewhere = supabase_client.table("msevent").select("event_id").eq("location_id", location_id).execute()
+            events_with_same_location = used_elsewhere.data or []  # ⬅️ Pastikan selalu list
+            if len(events_with_same_location) == 0:
+                supabase_client.table("mslocation").delete().eq("location_id", location_id).execute()
+
 
         return {"detail": "Forum berhasil dihapus"}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
