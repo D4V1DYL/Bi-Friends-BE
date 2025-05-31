@@ -40,23 +40,24 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     return response.data['user_id']
 
 class ForumInput(BaseModel):
-    title: str
-    description: str
-    event_name: str
-    event_date: str
-    start_date: Optional[str]
-    end_date: Optional[str]
-    location_name: str
-    location_address: Optional[str] = ""
-    location_capacity: int
-    location_latitude: float
-    location_longitude: float
-    forum_text: Optional[str] = ""
-    subject_id: int  # NEW FIELD
+    title: Optional[str] = None
+    description: Optional[str] = None
+    event_name: Optional[str] = None
+    event_date: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    location_name: Optional[str] = None
+    location_address: Optional[str] = None
+    location_capacity: Optional[int] = None
+    location_latitude: Optional[float] = None
+    location_longitude: Optional[float] = None
+    forum_text: Optional[str] = None
+    subject_id: Optional[int] = None
 
 
 @router.post("/create_forum")
 async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user)):
+    print("📦 Data Masuk:", data)
     now = datetime.utcnow().isoformat()
 
     try:
