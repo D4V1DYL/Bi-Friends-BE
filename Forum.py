@@ -142,6 +142,33 @@ async def get_forums(limit: int = Query(10), offset: int = Query(0)):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
+@router.get("/forum/{post_id}")
+async def get_forum(post_id: int):
+    try:
+        response = supabase_client.table("msforum").select("""
+        *,
+        msuser(username, profile_picture),
+        mssubject(subject_name),
+        msevent!fk_forum_event(
+            event_name,
+            event_date,
+            start_date,
+            end_date,
+            location:mslocation(location_name, address, capacity, latitude, longitude)
+        ),
+        msisi_forum(forum_text, attachment)
+        """).eq("post_id", post_id).maybe_single().execute()
+
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Forum tidak ditemukan")
+
+        return {"data": response.data}
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
     
 class ReplyInput(BaseModel):
     post_id: int
