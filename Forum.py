@@ -54,42 +54,46 @@ class ForumInput(BaseModel):
     forum_text: Optional[str] = None
     subject_id: Optional[int] = None
 
+def to_dict_wo_none(d):
+    return {k: v for k, v in d.items() if v is not None}
 
 @router.post("/create_forum")
 async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user)):
     print("📦 Data Masuk:", data)
     now = datetime.utcnow().isoformat()
 
-    def to_dict_wo_none(d):
-        return {k: v for k, v in d.items() if v is not None}
-
     try:
-        # Cek apakah lokasi sudah ada
-        location_lookup = {
-            "location_name": data.location_name,
-            "address": data.location_address,
-            "capacity": data.location_capacity,
-            "latitude": data.location_latitude,
-            "longitude": data.location_longitude
-        }
-        location = supabase_client.table("mslocation").select("location_id") \
-            .eq("location_name", data.location_name) \
-            .eq("address", data.location_address) \
-            .eq("capacity", data.location_capacity) \
-            .eq("latitude", data.location_latitude) \
-            .eq("longitude", data.location_longitude) \
-            .execute()
+        # Validate required fields
+        if not data.title or not data.description:
+            raise HTTPException(status_code=400, detail="Title and description are required")
 
-        if not location.data:
-            # Hanya field yang tidak None
-            new_location = supabase_client.table("mslocation").insert(
-                to_dict_wo_none(location_lookup)
-            ).execute()
-            location_id = new_location.data[0]['location_id']
-        else:
-            location_id = location.data[0]['location_id']
+        # Handle location
+        location_id = None
+        if data.location_name and data.location_capacity and data.location_latitude and data.location_longitude:
+            location_lookup = {
+                "location_name": data.location_name,
+                "address": data.location_address,
+                "capacity": data.location_capacity,
+                "latitude": data.location_latitude,
+                "longitude": data.location_longitude
+            }
+            location = supabase_client.table("mslocation").select("location_id") \
+                .eq("location_name", data.location_name) \
+                .eq("address", data.location_address) \
+                .eq("capacity", data.location_capacity) \
+                .eq("latitude", data.location_latitude) \
+                .eq("longitude", data.location_longitude) \
+                .execute()
 
-        # Insert ke msforum
+            if not location.data:
+                new_location = supabase_client.table("mslocation").insert(
+                    to_dict_wo_none(location_lookup)
+                ).execute()
+                location_id = new_location.data[0]['location_id']
+            else:
+                location_id = location.data[0]['location_id']
+
+        # Insert forum
         forum_data = {
             "user_id": user_id,
             "created_at": now,
@@ -103,41 +107,47 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
         ).execute()
         post_id = new_forum.data[0]['post_id']
 
-        # Convert time inputs to full datetime
-        start_datetime = f"{data.event_date}T{data.start_date}:00Z" if data.start_date else None
-        end_datetime = f"{data.event_date}T{data.end_date}:00Z" if data.end_date else None
+        # Handle event if provided
+        event_id = None
+        if data.event_name and data.event_date:
+            start_datetime = f"{data.event_date}T{data.start_date}:00Z" if data.start_date else None
+            end_datetime = f"{data.event_date}T{data.end_date}:00Z" if data.end_date else None
 
-        event_data = {
-            "event_name": data.event_name,
-            "event_date": data.event_date,
-            "start_date": start_datetime,
-            "end_date": end_datetime,
-            "related_post_id": post_id,
-            "created_at": now,
-            "location_id": location_id,
-            "created_by": user_id
-        }
-        new_event = supabase_client.table("msevent").insert(
-            to_dict_wo_none(event_data)
-        ).execute()
-        event_id = new_event.data[0]['event_id']
+            event_data = {
+                "event_name": data.event_name,
+                "event_date": data.event_date,
+                "start_date": start_datetime,
+                "end_date": end_datetime,
+                "related_post_id": post_id,
+                "created_at": now,
+                "location_id": location_id,
+                "created_by": user_id
+            }
+            new_event = supabase_client.table("msevent").insert(
+                to_dict_wo_none(event_data)
+            ).execute()
+            event_id = new_event.data[0]['event_id']
 
-        # Update msforum dengan event_id
-        supabase_client.table("msforum").update({"event_id": event_id}).eq("post_id", post_id).execute()
+            # Update forum with event_id
+            if event_id:
+                supabase_client.table("msforum").update({"event_id": event_id}).eq("post_id", post_id).execute()
 
-        # Insert ke msisi_forum
-        msisi_forum_data = {
-            "forum_text": data.forum_text,
-            "user_id": user_id,
-            "post_id": post_id,
-            "attachment": ""
-        }
-        supabase_client.table("msisi_forum").insert(
-            to_dict_wo_none(msisi_forum_data)
-        ).execute()
+        # Insert forum content if provided
+        if data.forum_text:
+            msisi_forum_data = {
+                "forum_text": data.forum_text,
+                "user_id": user_id,
+                "post_id": post_id,
+                "attachment": ""
+            }
+            supabase_client.table("msisi_forum").insert(
+                to_dict_wo_none(msisi_forum_data)
+            ).execute()
 
         return {"message": "Forum created successfully", "post_id": post_id}
 
+    except HTTPException as he:
+        raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
@@ -169,6 +179,10 @@ async def get_forums(limit: int = Query(10), offset: int = Query(0)):
 @router.get("/forum/{post_id}")
 async def get_forum(post_id: int):
     try:
+        # Validate post_id
+        if not post_id or post_id <= 0:
+            raise HTTPException(status_code=400, detail="Invalid post_id")
+
         response = supabase_client.table("msforum").select("""
         *,
         msuser(username, profile_picture),
@@ -186,7 +200,16 @@ async def get_forum(post_id: int):
         if not response.data:
             raise HTTPException(status_code=404, detail="Forum tidak ditemukan")
 
-        return {"data": response.data}
+        # Clean up None values in the response
+        def clean_none_values(data):
+            if isinstance(data, dict):
+                return {k: clean_none_values(v) for k, v in data.items() if v is not None}
+            elif isinstance(data, list):
+                return [clean_none_values(item) for item in data if item is not None]
+            return data
+
+        cleaned_data = clean_none_values(response.data)
+        return {"data": cleaned_data}
 
     except HTTPException as he:
         raise he
