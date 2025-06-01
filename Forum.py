@@ -60,7 +60,18 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
     print("📦 Data Masuk:", data)
     now = datetime.utcnow().isoformat()
 
+    def to_dict_wo_none(d):
+        return {k: v for k, v in d.items() if v is not None}
+
     try:
+        # Cek apakah lokasi sudah ada
+        location_lookup = {
+            "location_name": data.location_name,
+            "address": data.location_address,
+            "capacity": data.location_capacity,
+            "latitude": data.location_latitude,
+            "longitude": data.location_longitude
+        }
         location = supabase_client.table("mslocation").select("location_id") \
             .eq("location_name", data.location_name) \
             .eq("address", data.location_address) \
@@ -68,33 +79,35 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
             .eq("latitude", data.location_latitude) \
             .eq("longitude", data.location_longitude) \
             .execute()
+
         if not location.data:
-            new_location = supabase_client.table("mslocation").insert({
-                "location_name": data.location_name,
-                "address": data.location_address,
-                "capacity": data.location_capacity,
-                "latitude": data.location_latitude,
-                "longitude": data.location_longitude
-            }).execute()
+            # Hanya field yang tidak None
+            new_location = supabase_client.table("mslocation").insert(
+                to_dict_wo_none(location_lookup)
+            ).execute()
             location_id = new_location.data[0]['location_id']
         else:
             location_id = location.data[0]['location_id']
 
-        new_forum = supabase_client.table("msforum").insert({
+        # Insert ke msforum
+        forum_data = {
             "user_id": user_id,
             "created_at": now,
             "description": data.description,
             "title": data.title,
             "event_id": None,
-            "subject_id": data.subject_id  # ADDED SUBJECT ID
-        }).execute()
+            "subject_id": data.subject_id
+        }
+        new_forum = supabase_client.table("msforum").insert(
+            to_dict_wo_none(forum_data)
+        ).execute()
         post_id = new_forum.data[0]['post_id']
 
         # Convert time inputs to full datetime
         start_datetime = f"{data.event_date}T{data.start_date}:00Z" if data.start_date else None
         end_datetime = f"{data.event_date}T{data.end_date}:00Z" if data.end_date else None
 
-        new_event = supabase_client.table("msevent").insert({
+        event_data = {
             "event_name": data.event_name,
             "event_date": data.event_date,
             "start_date": start_datetime,
@@ -103,22 +116,31 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
             "created_at": now,
             "location_id": location_id,
             "created_by": user_id
-        }).execute()
+        }
+        new_event = supabase_client.table("msevent").insert(
+            to_dict_wo_none(event_data)
+        ).execute()
         event_id = new_event.data[0]['event_id']
 
+        # Update msforum dengan event_id
         supabase_client.table("msforum").update({"event_id": event_id}).eq("post_id", post_id).execute()
 
-        supabase_client.table("msisi_forum").insert({
+        # Insert ke msisi_forum
+        msisi_forum_data = {
             "forum_text": data.forum_text,
             "user_id": user_id,
             "post_id": post_id,
             "attachment": ""
-        }).execute()
+        }
+        supabase_client.table("msisi_forum").insert(
+            to_dict_wo_none(msisi_forum_data)
+        ).execute()
 
         return {"message": "Forum created successfully", "post_id": post_id}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
 
 
 
