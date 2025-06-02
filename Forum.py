@@ -292,6 +292,7 @@ async def list_events(limit: int = Query(10), offset: int = Query(0)):
             event_date,
             start_date,
             end_date,
+            related_post_id,
             mslocation(location_name, capacity)
         """).order("event_date", desc=True).range(offset, offset + limit - 1).execute()
 
