@@ -228,7 +228,7 @@ async def reply_forum(data: ReplyInput, user_id: int = Depends(get_current_user)
     try:
         post_id = data.post_id
 
-        forum_check = supabase_client.table("ms_forum").select("post_id").eq("post_id", post_id).execute()
+        forum_check = supabase_client.table("msforum").select("post_id").eq("post_id", post_id).execute()
         
         if not forum_check.data:
             raise HTTPException(status_code=404, detail="Forum not found with the given post_id")
