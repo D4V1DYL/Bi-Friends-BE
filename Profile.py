@@ -39,6 +39,7 @@ async def get_user_profile(user_id: int):
             username,
             profile_picture,
             gender,
+            bio,
             email
         """).eq("user_id", user_id).single().execute()
 
