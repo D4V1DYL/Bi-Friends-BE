@@ -5,6 +5,8 @@ from datetime import datetime
 from config import supabase_client
 from typing import Optional
 import jwt
+import pytz
+
 
 router = APIRouter()
 
@@ -110,8 +112,15 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
         # Handle event if provided
         event_id = None
         if data.event_name and data.event_date:
-            start_datetime = f"{data.event_date}T{data.start_date}:00Z" if data.start_date else None
-            end_datetime = f"{data.event_date}T{data.end_date}:00Z" if data.end_date else None
+            def wib_to_utc(date_str, time_str):
+                local = pytz.timezone('Asia/Jakarta')
+                dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+                local_dt = local.localize(dt)
+                utc_dt = local_dt.astimezone(pytz.utc)
+                return utc_dt.isoformat().replace('+00:00', 'Z')
+            
+            start_datetime = wib_to_utc(data.event_date, data.start_date) if data.start_date else None
+            end_datetime = wib_to_utc(data.event_date, data.end_date) if data.end_date else None
 
             event_data = {
                 "event_name": data.event_name,

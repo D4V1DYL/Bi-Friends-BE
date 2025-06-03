@@ -36,3 +36,4 @@ supabase
 postgrest
 PyJWT
 cloudinary
+pytz
