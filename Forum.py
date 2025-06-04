@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status, Query
+from fastapi import APIRouter, HTTPException, Depends, status, Query, UploadFile, File, Form
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordBearer
 from datetime import datetime
@@ -6,6 +6,8 @@ from config import supabase_client
 from typing import Optional
 import jwt
 import pytz
+import cloudinary
+import cloudinary.uploader
 
 
 router = APIRouter()
@@ -14,6 +16,12 @@ SECRET_KEY = "27aa6d1a-519c-4d88-b265-cda5808c0fe5"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+cloudinary.config(
+    cloud_name = "dr3k8ac6l", 
+    api_key = "812158745664199",  
+    api_secret="IbFLS26_PFtihZHnm_QkLWTy9ww"
+)
 
 
 def verify_token(token: str, credentials_exception):
@@ -60,31 +68,70 @@ def to_dict_wo_none(d):
     return {k: v for k, v in d.items() if v is not None}
 
 @router.post("/create_forum")
-async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user)):
-    print("📦 Data Masuk:", data)
+async def create_forum(
+    title: str = Form(...),
+    description: str = Form(...),
+    forum_text: Optional[str] = Form(" "),
+    subject_id: Optional[int] = Form(None),
+    event_name: Optional[str] = Form(None),
+    event_date: Optional[str] = Form(None),
+    start_date: Optional[str] = Form(None),
+    end_date: Optional[str] = Form(None),
+    location_name: Optional[str] = Form(None),
+    location_address: Optional[str] = Form(None),
+    location_capacity: Optional[int] = Form(None),
+    location_latitude: Optional[float] = Form(None),
+    location_longitude: Optional[float] = Form(None),
+    attachment: Optional[UploadFile] = File(None),
+    user_id: int = Depends(get_current_user)
+):
+    print("📦 Data Masuk:", {
+        "title": title,
+        "description": description,
+        "forum_text": forum_text,
+        "subject_id": subject_id,
+        "event_name": event_name,
+        "event_date": event_date,
+        "start_date": start_date,
+        "end_date": end_date,
+        "location_name": location_name,
+        "location_address": location_address,
+        "location_capacity": location_capacity,
+        "location_latitude": location_latitude,
+        "location_longitude": location_longitude
+    })
     now = datetime.utcnow().isoformat()
 
     try:
         # Validate required fields
-        if not data.title or not data.description:
+        if not title or not description:
             raise HTTPException(status_code=400, detail="Title and description are required")
+
+        # Handle attachment upload if provided
+        attachment_url = None
+        if attachment:
+            try:
+                upload_result = cloudinary.uploader.upload(attachment.file)
+                attachment_url = upload_result.get("secure_url")
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Failed to upload attachment: {str(e)}")
 
         # Handle location
         location_id = None
-        if data.location_name and data.location_capacity and data.location_latitude and data.location_longitude:
+        if location_name and location_capacity and location_latitude and location_longitude:
             location_lookup = {
-                "location_name": data.location_name,
-                "address": data.location_address,
-                "capacity": data.location_capacity,
-                "latitude": data.location_latitude,
-                "longitude": data.location_longitude
+                "location_name": location_name,
+                "address": location_address,
+                "capacity": location_capacity,
+                "latitude": location_latitude,
+                "longitude": location_longitude
             }
             location = supabase_client.table("mslocation").select("location_id") \
-                .eq("location_name", data.location_name) \
-                .eq("address", data.location_address) \
-                .eq("capacity", data.location_capacity) \
-                .eq("latitude", data.location_latitude) \
-                .eq("longitude", data.location_longitude) \
+                .eq("location_name", location_name) \
+                .eq("address", location_address) \
+                .eq("capacity", location_capacity) \
+                .eq("latitude", location_latitude) \
+                .eq("longitude", location_longitude) \
                 .execute()
 
             if not location.data:
@@ -99,10 +146,10 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
         forum_data = {
             "user_id": user_id,
             "created_at": now,
-            "description": data.description,
-            "title": data.title,
+            "description": description,
+            "title": title,
             "event_id": None,
-            "subject_id": data.subject_id
+            "subject_id": subject_id
         }
         new_forum = supabase_client.table("msforum").insert(
             to_dict_wo_none(forum_data)
@@ -111,7 +158,7 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
 
         # Handle event if provided
         event_id = None
-        if data.event_name and data.event_date:
+        if event_name and event_date:
             def wib_to_utc(date_str, time_str):
                 local = pytz.timezone('Asia/Jakarta')
                 dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
@@ -119,12 +166,12 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
                 utc_dt = local_dt.astimezone(pytz.utc)
                 return utc_dt.isoformat().replace('+00:00', 'Z')
             
-            start_datetime = wib_to_utc(data.event_date, data.start_date) if data.start_date else None
-            end_datetime = wib_to_utc(data.event_date, data.end_date) if data.end_date else None
+            start_datetime = wib_to_utc(event_date, start_date) if start_date else None
+            end_datetime = wib_to_utc(event_date, end_date) if end_date else None
 
             event_data = {
-                "event_name": data.event_name,
-                "event_date": data.event_date,
+                "event_name": event_name,
+                "event_date": event_date,
                 "start_date": start_datetime,
                 "end_date": end_datetime,
                 "related_post_id": post_id,
@@ -142,12 +189,12 @@ async def create_forum(data: ForumInput, user_id: int = Depends(get_current_user
                 supabase_client.table("msforum").update({"event_id": event_id}).eq("post_id", post_id).execute()
 
         # Insert forum content if provided
-        if data.forum_text:
+        if forum_text:
             msisi_forum_data = {
-                "forum_text": data.forum_text,
+                "forum_text": forum_text,
                 "user_id": user_id,
                 "post_id": post_id,
-                "attachment": ""
+                "attachment": attachment_url or ""
             }
             supabase_client.table("msisi_forum").insert(
                 to_dict_wo_none(msisi_forum_data)
@@ -171,12 +218,14 @@ async def get_forums(limit: int = Query(10), offset: int = Query(0)):
         msuser(username, profile_picture),
         mssubject(subject_name),
         msevent!fk_forum_event(
-        event_name,
-        event_date,
-        start_date,
-        end_date,
-        location:mslocation(location_name)
-        )""").order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+            event_name,
+            event_date,
+            start_date,
+            end_date,
+            location:mslocation(location_name)
+        ),
+        msisi_forum(forum_text, attachment)
+        """).order("created_at", desc=True).range(offset, offset + limit - 1).execute()
 
         forum_data = response.data
 
@@ -226,34 +275,49 @@ async def get_forum(post_id: int):
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
     
 class ReplyInput(BaseModel):
-    post_id: int
-    reply_text: str
-    parent_reply_id: Optional[int] = None
-    attachment: Optional[str] = ""
-
+    # No longer needed as we're using Form and File directly
+    pass
 
 @router.post("/reply_forum")
-async def reply_forum(data: ReplyInput, user_id: int = Depends(get_current_user)):
+async def reply_forum(
+    post_id: int = Form(...),
+    reply_text: str = Form(...),
+    parent_reply_id: Optional[int] = Form(None),
+    attachment: Optional[UploadFile] = File(None),
+    user_id: int = Depends(get_current_user)
+):
     try:
-        post_id = data.post_id
+        # Validate required fields (post_id and reply_text are already validated by Form(...))
 
         forum_check = supabase_client.table("msforum").select("post_id").eq("post_id", post_id).execute()
         
         if not forum_check.data:
             raise HTTPException(status_code=404, detail="Forum not found with the given post_id")
 
-        parent_reply_id = data.parent_reply_id if data.parent_reply_id else None
+        # Determine the actual parent_reply_id to insert (use None for top-level replies, assuming 0 indicates top-level)
+        parent_id_to_insert = parent_reply_id if parent_reply_id is not None and parent_reply_id != 0 else None
+
+        # Handle attachment upload if provided
+        attachment_url = None
+        if attachment:
+            try:
+                upload_result = cloudinary.uploader.upload(attachment.file)
+                attachment_url = upload_result.get("secure_url")
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Failed to upload attachment: {str(e)}")
 
         new_reply = supabase_client.table("msforum_reply").insert({
             "post_id": post_id,
             "user_id": user_id,
-            "reply_text": data.reply_text,
-            "parent_reply_id": parent_reply_id,
-            "attachment": data.attachment or ""
+            "reply_text": reply_text,
+            "parent_reply_id": parent_id_to_insert,
+            "attachment": attachment_url or ""
         }).execute()
 
         return {"message": "Reply inserted", "reply_id": new_reply.data[0]["reply_id"]}
 
+    except HTTPException as he:
+        raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
@@ -261,7 +325,15 @@ async def reply_forum(data: ReplyInput, user_id: int = Depends(get_current_user)
 async def get_forum_replies(post_id: int):
     try:
         result = supabase_client.table("msforum_reply") \
-            .select("reply_id, parent_reply_id, reply_text, created_at, user_id") \
+            .select("""
+                reply_id, 
+                parent_reply_id, 
+                reply_text, 
+                created_at, 
+                user_id,
+                attachment,
+                msuser(username, profile_picture)
+            """) \
             .eq("post_id", post_id) \
             .order("created_at", desc=False) \
             .execute()
